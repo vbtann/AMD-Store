@@ -18,12 +18,10 @@ async function initDatabase() {
 		const adminUsername = process.env.ADMIN_USERNAME || 'admin';
 		const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
-		// Check if admin user already exists using better-auth's native MongoDB connection
-		// Note: better-auth uses native MongoDB driver, not Mongoose
-		const { MongoClient } = require('mongodb');
-		const mongoClient = new MongoClient(process.env.MONGODB_URI);
-		await mongoClient.connect();
-		const betterAuthDb = mongoClient.db();
+		// Use mongoose connection's native MongoDB driver to access better-auth collections
+		// This avoids creating a new connection with wrong credentials
+		const mongoose = require('mongoose');
+		const betterAuthDb = mongoose.connection.db;
 
 		const existingUser = await betterAuthDb.collection('user').findOne({
 			$or: [{ email: adminEmail }, { username: adminUsername }]
@@ -49,59 +47,52 @@ async function initDatabase() {
 		} else {
 			console.log('📝 Creating new admin user...');
 			try {
-				// Use better-auth context adapter directly for more control
-				// This approach is more reliable for setting username with username plugin
-				const ctx = await auth.api.getContext();
-				const { adapter } = ctx;
-
-				// First create the user with adapter (this handles username plugin properly)
-				const createdUser = await adapter.create({
-					model: 'user',
-					data: {
-						email: adminEmail,
-						name: 'System Administrator',
-						emailVerified: false,
-						username: adminUsername, // Username plugin field
-						displayUsername: 'Admin', // Additional field
-						role: 'admin', // Admin plugin field
-						image: null,
-						createdAt: new Date(),
-						updatedAt: new Date()
-					}
-				});
-
-				if (!createdUser || !createdUser.id) {
-					throw new Error('Failed to create user - no ID returned');
-				}
-
-				console.log('✅ User record created:', {
-					id: createdUser.id,
-					email: createdUser.email,
-					username: createdUser.username,
-					displayUsername: createdUser.displayUsername,
-					role: createdUser.role
-				});
-
-				// Then create the credential account with hashed password
+				// Hash password using better-auth
 				const hashedPassword = await auth.api.hashPassword(adminPassword);
 
-				await adapter.create({
-					model: 'account',
-					data: {
-						userId: createdUser.id,
-						accountId: createdUser.email, // Use email as accountId for credential provider
-						providerId: 'credential',
-						password: hashedPassword,
-						accessToken: null,
-						refreshToken: null,
-						idToken: null,
-						accessTokenExpiresAt: null,
-						refreshTokenExpiresAt: null,
-						scope: null,
-						createdAt: new Date(),
-						updatedAt: new Date()
-					}
+				// Generate a unique ID for the user
+				const userId = crypto.randomUUID();
+
+				// Create user document with username field
+				const userDoc = {
+					id: userId,
+					email: adminEmail,
+					name: 'System Administrator',
+					emailVerified: false,
+					username: adminUsername, // Username plugin field
+					role: 'admin', // Admin plugin field
+					image: null,
+					createdAt: new Date(),
+					updatedAt: new Date()
+				};
+
+				await betterAuthDb.collection('user').insertOne(userDoc);
+
+				console.log('✅ User record created:', {
+					id: userDoc.id,
+					email: userDoc.email,
+					username: userDoc.username,
+					role: userDoc.role
 				});
+
+				// Create account (credential) document
+				const accountDoc = {
+					id: crypto.randomUUID(),
+					userId: userId,
+					accountId: adminEmail, // Use email as accountId for credential provider
+					providerId: 'credential',
+					password: hashedPassword,
+					accessToken: null,
+					refreshToken: null,
+					idToken: null,
+					accessTokenExpiresAt: null,
+					refreshTokenExpiresAt: null,
+					scope: null,
+					createdAt: new Date(),
+					updatedAt: new Date()
+				};
+
+				await betterAuthDb.collection('account').insertOne(accountDoc);
 
 				console.log('✅ Admin user created successfully with username:', adminUsername);
 			} catch (createError) {
@@ -114,8 +105,6 @@ async function initDatabase() {
 				throw createError;
 			}
 		}
-
-		await mongoClient.close();
 
 		// Initialize payment settings
 		const existingSettings = await Settings.findOne({ key: SETTINGS_KEY });

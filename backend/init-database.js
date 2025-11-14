@@ -49,14 +49,21 @@ async function initDatabase() {
 		} else {
 			console.log('📝 Creating new admin user...');
 			try {
+				// When using admin plugin's createUser API:
+				// - email, password, name are basic fields
+				// - username is a direct field (because username plugin is enabled)
+				// - role is a direct field (because admin plugin is enabled)
+				// - displayUsername goes in 'data' object (custom additional field)
 				const result = await auth.api.createUser({
 					body: {
 						email: adminEmail,
 						name: 'System Administrator',
 						password: adminPassword,
-						username: adminUsername,
-						displayUsername: 'Admin',
-						role: 'admin'
+						username: adminUsername, // Direct field (username plugin)
+						role: 'admin', // Direct field (admin plugin)
+						data: {
+							displayUsername: 'Admin' // Additional custom field
+						}
 					},
 				});
 
@@ -65,6 +72,7 @@ async function initDatabase() {
 						id: result.user.id,
 						email: result.user.email,
 						username: result.user.username,
+						displayUsername: result.user.displayUsername,
 						role: result.user.role
 					});
 				} else {

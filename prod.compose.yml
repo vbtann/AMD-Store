@@ -53,11 +53,13 @@ services:
     pull_policy: always
     container_name: amdstore_backend
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${BACKEND_PORT:-5000}
       BASE_URL: ${BACKEND_URL:-http://localhost}
-      MONGODB_URI: ${MONGODB_URI:-mongodb://admin:password123@mongodb:27017/minipreorder?authSource=admin}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://amdadmin:amdpassword123@mongodb:27017/amdstore?authSource=admin}
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-here}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-sab@fit.hcmus.edu.vn}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}

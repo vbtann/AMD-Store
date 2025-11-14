@@ -11,13 +11,27 @@ async function waitForMongoDB() {
 
 	while (retries < maxRetries) {
 		try {
+			const mongoose = require('mongoose');
+			// Close any existing connections before retry
+			if (mongoose.connection.readyState !== 0) {
+				await mongoose.connection.close();
+				await new Promise(resolve => setTimeout(resolve, 500));
+			}
+
 			await connectDB();
 			console.log('[OK] MongoDB is ready');
+
+			// Ensure connection is stable before proceeding
+			await new Promise(resolve => setTimeout(resolve, 1000));
 			return true;
 		} catch (error) {
 			retries++;
-			console.log(`MongoDB not ready, retrying... (${retries}/${maxRetries})`);
-			await new Promise(resolve => setTimeout(resolve, 2000));
+			if (retries < maxRetries) {
+				console.log(`MongoDB not ready, retrying... (${retries}/${maxRetries})`);
+				await new Promise(resolve => setTimeout(resolve, 2000));
+			} else {
+				console.error('MongoDB connection error:', error.message);
+			}
 		}
 	}
 

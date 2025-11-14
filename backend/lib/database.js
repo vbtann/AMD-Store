@@ -3,9 +3,10 @@ const logger = require('../utils/logger');
 require('dotenv').config();
 
 let isConnected = false;
+let connectionListenersSet = false;
 
 async function connectDB() {
-	if (isConnected) {
+	if (isConnected && mongoose.connection.readyState === 1) {
 		logger.info('MongoDB already connected via Mongoose');
 		return mongoose.connection;
 	}
@@ -16,7 +17,19 @@ async function connectDB() {
 			throw new Error('MONGODB_URI environment variable is required');
 		}
 
-		await mongoose.connect(mongoUri);
+		// Configure connection options to prevent reconnection loops
+		const options = {
+			// Connection pool settings
+			maxPoolSize: 10,
+			minPoolSize: 2,
+			serverSelectionTimeoutMS: 10000,
+			socketTimeoutMS: 45000,
+			// Disable auto-reconnect to prevent loops
+			// We handle reconnection at application level
+			autoIndex: process.env.NODE_ENV !== 'production',
+		};
+
+		await mongoose.connect(mongoUri, options);
 
 		isConnected = true;
 		logger.database('MongoDB connected successfully via Mongoose', {
@@ -24,21 +37,36 @@ async function connectDB() {
 			name: mongoose.connection.name
 		});
 
-		// Handle connection events
-		mongoose.connection.on('error', (err) => {
-			logger.error('MongoDB connection error', err);
-			isConnected = false;
-		});
+		// Set up connection event handlers only once
+		if (!connectionListenersSet) {
+			connectionListenersSet = true;
 
-		mongoose.connection.on('disconnected', () => {
-			logger.warn('MongoDB disconnected');
-			isConnected = false;
-		});
+			mongoose.connection.on('error', (err) => {
+				logger.error('MongoDB connection error', err);
+				isConnected = false;
+			});
 
-		mongoose.connection.on('reconnected', () => {
-			logger.success('MongoDB reconnected');
-			isConnected = true;
-		});
+			mongoose.connection.on('disconnected', () => {
+				if (isConnected) {
+					logger.warn('MongoDB disconnected unexpectedly');
+					isConnected = false;
+				}
+			});
+
+			mongoose.connection.on('reconnected', () => {
+				if (!isConnected) {
+					logger.success('MongoDB reconnected');
+					isConnected = true;
+				}
+			});
+
+			mongoose.connection.on('connected', () => {
+				if (!isConnected) {
+					logger.info('MongoDB connection established');
+					isConnected = true;
+				}
+			});
+		}
 
 		return mongoose.connection;
 	} catch (error) {

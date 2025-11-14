@@ -12,23 +12,32 @@ async function waitForMongoDB() {
 	while (retries < maxRetries) {
 		try {
 			const mongoose = require('mongoose');
-			// Close any existing connections before retry
-			if (mongoose.connection.readyState !== 0) {
-				await mongoose.connection.close();
-				await new Promise(resolve => setTimeout(resolve, 500));
+
+			// Only close if in a bad state (not disconnected or connected)
+			if (mongoose.connection.readyState === 3) { // 3 = disconnecting
+				await new Promise(resolve => setTimeout(resolve, 1000));
 			}
 
 			await connectDB();
 			console.log('[OK] MongoDB is ready');
 
-			// Ensure connection is stable before proceeding
-			await new Promise(resolve => setTimeout(resolve, 1000));
+			// Give MongoDB time to stabilize
+			await new Promise(resolve => setTimeout(resolve, 2000));
 			return true;
 		} catch (error) {
 			retries++;
 			if (retries < maxRetries) {
 				console.log(`MongoDB not ready, retrying... (${retries}/${maxRetries})`);
-				await new Promise(resolve => setTimeout(resolve, 2000));
+				// Close failed connection before retry
+				const mongoose = require('mongoose');
+				if (mongoose.connection.readyState !== 0) {
+					try {
+						await mongoose.connection.close();
+					} catch (e) {
+						// Ignore close errors
+					}
+				}
+				await new Promise(resolve => setTimeout(resolve, 3000));
 			} else {
 				console.error('MongoDB connection error:', error.message);
 			}
@@ -36,9 +45,7 @@ async function waitForMongoDB() {
 	}
 
 	throw new Error('MongoDB failed to become ready within timeout');
-}
-
-async function initializeDatabase() {
+} async function initializeDatabase() {
 	console.log('Initializing database...');
 
 	return new Promise((resolve, reject) => {

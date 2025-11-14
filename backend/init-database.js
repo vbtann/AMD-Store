@@ -49,35 +49,61 @@ async function initDatabase() {
 		} else {
 			console.log('📝 Creating new admin user...');
 			try {
-				// When using admin plugin's createUser API:
-				// - email, password, name are basic fields
-				// - username is a direct field (because username plugin is enabled)
-				// - role is a direct field (because admin plugin is enabled)
-				// - displayUsername goes in 'data' object (custom additional field)
-				const result = await auth.api.createUser({
-					body: {
+				// Use better-auth context adapter directly for more control
+				// This approach is more reliable for setting username with username plugin
+				const ctx = await auth.api.getContext();
+				const { adapter } = ctx;
+
+				// First create the user with adapter (this handles username plugin properly)
+				const createdUser = await adapter.create({
+					model: 'user',
+					data: {
 						email: adminEmail,
 						name: 'System Administrator',
-						password: adminPassword,
-						username: adminUsername, // Direct field (username plugin)
-						role: 'admin', // Direct field (admin plugin)
-						data: {
-							displayUsername: 'Admin' // Additional custom field
-						}
-					},
+						emailVerified: false,
+						username: adminUsername, // Username plugin field
+						displayUsername: 'Admin', // Additional field
+						role: 'admin', // Admin plugin field
+						image: null,
+						createdAt: new Date(),
+						updatedAt: new Date()
+					}
 				});
 
-				if (result && result.user) {
-					console.log('✅ Admin user created successfully:', {
-						id: result.user.id,
-						email: result.user.email,
-						username: result.user.username,
-						displayUsername: result.user.displayUsername,
-						role: result.user.role
-					});
-				} else {
-					console.error('⚠️  createUser returned unexpected result:', result);
+				if (!createdUser || !createdUser.id) {
+					throw new Error('Failed to create user - no ID returned');
 				}
+
+				console.log('✅ User record created:', {
+					id: createdUser.id,
+					email: createdUser.email,
+					username: createdUser.username,
+					displayUsername: createdUser.displayUsername,
+					role: createdUser.role
+				});
+
+				// Then create the credential account with hashed password
+				const hashedPassword = await auth.api.hashPassword(adminPassword);
+
+				await adapter.create({
+					model: 'account',
+					data: {
+						userId: createdUser.id,
+						accountId: createdUser.email, // Use email as accountId for credential provider
+						providerId: 'credential',
+						password: hashedPassword,
+						accessToken: null,
+						refreshToken: null,
+						idToken: null,
+						accessTokenExpiresAt: null,
+						refreshTokenExpiresAt: null,
+						scope: null,
+						createdAt: new Date(),
+						updatedAt: new Date()
+					}
+				});
+
+				console.log('✅ Admin user created successfully with username:', adminUsername);
 			} catch (createError) {
 				console.error('❌ Error creating admin user:', createError);
 				console.error('[INIT-DB] Error details:', {

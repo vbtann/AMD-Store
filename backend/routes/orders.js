@@ -6,6 +6,7 @@ const { generateOrderCode, calculateTotal } = require('../utils/helpers');
 const { sendOrderToAppScript } = require('../utils/appscript');
 const { generateOrderPaymentQR, formatOrderPaymentDescription } = require('../utils/paymentHelper');
 const ComboService = require('../services/ComboService');
+const logger = require('../utils/logger');
 const router = express.Router();
 
 /**
@@ -15,29 +16,29 @@ const router = express.Router();
  */
 router.post('/', validateOrder, async (req, res) => {
 	try {
-		console.log('📝 Order creation started:', {
-			timestamp: new Date().toISOString(),
-			body: { ...req.body, items: req.body.items?.length ? `${req.body.items.length} items` : 'no items' }
+		logger.info('Order creation started', {
+			items: req.body.items?.length || 0,
+			useOptimalPricing: req.body.useOptimalPricing
 		});
 
 		const { studentId, fullName, email, phoneNumber, school, additionalNote, items, optimalPricing, useOptimalPricing = false } = req.body;
 
 		if (!items || !Array.isArray(items) || items.length === 0) {
-			console.error('❌ Invalid items in request');
+			logger.warn('Invalid items in order request', { items });
 			return res.status(400).json({
 				success: false,
 				message: 'Danh sách sản phẩm không hợp lệ'
 			});
 		}
 
-		console.log('🔍 Processing items:', items.map(item => ({ productId: item.productId, quantity: item.quantity })));
+		logger.debug('Processing items', { itemCount: items.length });
 
 		let totalAmount;
 		let comboInfo = null;
 		let orderItems = [];
 
 		if (useOptimalPricing && optimalPricing) {
-			console.log('💎 Using optimal pricing from frontend');
+			logger.info('Using optimal pricing from frontend');
 
 			// Validate products exist
 			const productIds = items.map(item => item.productId);
@@ -47,7 +48,10 @@ router.post('/', validateOrder, async (req, res) => {
 			});
 
 			if (products.length !== productIds.length) {
-				console.error('❌ Product validation failed');
+				logger.warn('Product validation failed', {
+					requested: productIds.length,
+					found: products.length
+				});
 				return res.status(400).json({
 					success: false,
 					message: 'Một hoặc nhiều sản phẩm không tồn tại hoặc không khả dụng'
@@ -80,18 +84,18 @@ router.post('/', validateOrder, async (req, res) => {
 				};
 			}
 
-			console.log('✅ Using optimal pricing:', {
+			logger.debug('Optimal pricing applied', {
 				originalTotal: optimalPricing.summary.originalTotal,
 				finalTotal: totalAmount,
 				savings: optimalPricing.summary.totalSavings
 			});
 
 		} else {
-			console.log('🔄 Using traditional combo detection');
+			logger.info('Using traditional combo detection');
 			// Original combo detection logic as fallback
 			let finalItems = items;
 
-			console.log('🎯 Applying combo detection...');
+			logger.debug('Applying combo detection');
 			const comboResult = await ComboService.detectAndApplyBestCombo(items, false);
 			if (comboResult.success && comboResult.hasCombo) {
 				finalItems = comboResult.finalItems;
@@ -101,12 +105,13 @@ router.post('/', validateOrder, async (req, res) => {
 					savings: comboResult.savings,
 					message: comboResult.message
 				};
+				logger.info('Combo applied', { comboName: comboResult.combo.name, savings: comboResult.savings });
 			}
 
-			console.log('🔄 Converting combo items to individual products...');
+			logger.debug('Converting combo items to individual products');
 			const expandedItems = ComboService.expandComboItems(finalItems);
 
-			console.log('🔍 Validating products in database...');
+			logger.debug('Validating products in database');
 			const productIds = expandedItems.map(item => item.productId).filter(id => id);
 			const products = await Product.find({
 				_id: { $in: productIds },
@@ -114,14 +119,17 @@ router.post('/', validateOrder, async (req, res) => {
 			});
 
 			if (products.length !== productIds.length) {
-				console.error('❌ Product validation failed');
+				logger.warn('Product validation failed in traditional mode', {
+					requested: productIds.length,
+					found: products.length
+				});
 				return res.status(400).json({
 					success: false,
 					message: 'Một hoặc nhiều sản phẩm không tồn tại hoặc không khả dụng'
 				});
 			}
 
-			console.log('💰 Building order items with pricing...');
+			logger.debug('Building order items with pricing');
 			orderItems = expandedItems.map(item => {
 				const product = products.find(p => p._id.toString() === item.productId);
 				return {
@@ -135,19 +143,19 @@ router.post('/', validateOrder, async (req, res) => {
 				};
 			});
 
-			console.log('📊 Calculating total amount...');
+			logger.debug('Calculating total amount');
 			if (comboInfo && finalItems.some(item => item.isCombo)) {
 				totalAmount = finalItems.reduce((total, item) => {
 					return total + (item.price * item.quantity);
 				}, 0);
-				console.log('💝 Total with combo pricing:', totalAmount);
+				logger.debug('Total with combo pricing', { totalAmount });
 			} else {
 				totalAmount = calculateTotal(orderItems);
-				console.log('💰 Total with individual pricing:', totalAmount);
+				logger.debug('Total with individual pricing', { totalAmount });
 			}
 		}
 
-		console.log('🏷️ Generating unique order code...');
+		logger.debug('Generating unique order code');
 		// Generate unique order code
 		let orderCode;
 		let isUnique = false;
@@ -163,16 +171,16 @@ router.post('/', validateOrder, async (req, res) => {
 		}
 
 		if (!isUnique) {
-			console.error('❌ Failed to generate unique order code after 10 attempts');
+			logger.error('Failed to generate unique order code', null, { attempts });
 			return res.status(500).json({
 				success: false,
 				message: 'Không thể tạo mã vé duy nhất'
 			});
 		}
 
-		console.log('✅ Generated order code:', orderCode);
+		logger.info('Order code generated', { orderCode });
 
-		console.log('💾 Creating order in database...');
+		logger.debug('Creating order in database');
 		// Create order
 		const order = new Order({
 			orderCode,
@@ -198,7 +206,7 @@ router.post('/', validateOrder, async (req, res) => {
 		});
 
 		await order.save();
-		console.log('✅ Order saved successfully:', order._id);
+		logger.success('Order saved successfully', { orderId: order._id, orderCode });
 
 		// Generate payment QR URL and description
 		let qrUrl = null;
@@ -206,9 +214,9 @@ router.post('/', validateOrder, async (req, res) => {
 		try {
 			qrUrl = await generateOrderPaymentQR(totalAmount, orderCode, studentId, fullName);
 			paymentDescription = await formatOrderPaymentDescription(orderCode, studentId, fullName);
-			console.log('✅ QR URL generated:', qrUrl);
+			logger.debug('QR URL generated', { qrUrl });
 		} catch (qrError) {
-			console.error('❌ Failed to generate QR URL:', qrError.message);
+			logger.error('Failed to generate QR URL', qrError);
 		}
 
 		// Log dữ liệu gửi App Script
@@ -223,11 +231,11 @@ router.post('/', validateOrder, async (req, res) => {
 			items: orderItems,
 			totalAmount
 		};
-		console.log('Push to AppScript:', appscriptData);
+		logger.debug('Pushing order to AppScript', { orderCode });
 		// Gửi lên App Script sau, không chờ kết quả
 		setImmediate(() => {
 			sendOrderToAppScript(appscriptData).catch(err => {
-				console.error('Gửi đơn hàng lên App Script thất bại:', err.message);
+				logger.error('Failed to send order to AppScript', err, { orderCode });
 			});
 		});
 
@@ -246,15 +254,11 @@ router.post('/', validateOrder, async (req, res) => {
 		});
 
 	} catch (error) {
-		console.error('💥 Error creating order:', {
-			error: error.message,
-			stack: error.stack,
-			timestamp: new Date().toISOString()
-		});
+		logger.error('Error creating order', error, logger.getRequestContext(req));
 
 		// More specific error handling
 		if (error.name === 'ValidationError') {
-			console.error('❌ Validation error details:', error.errors);
+			logger.warn('Order validation error', { errors: error.errors });
 			return res.status(400).json({
 				success: false,
 				message: 'Dữ liệu đơn hàng không hợp lệ',
@@ -263,7 +267,7 @@ router.post('/', validateOrder, async (req, res) => {
 		}
 
 		if (error.name === 'MongoError' || error.name === 'MongoServerError') {
-			console.error('❌ Database error:', error.message);
+			logger.error('Database error while creating order', error);
 			return res.status(500).json({
 				success: false,
 				message: 'Lỗi cơ sở dữ liệu'
@@ -314,7 +318,7 @@ router.get('/:orderCode', async (req, res) => {
 				order.fullName
 			);
 		} catch (error) {
-			console.error('Error generating payment info:', error);
+			logger.error('Error generating payment info for tracking', error, { orderCode: order.orderCode });
 		}
 
 		// Return order information including payment details
@@ -339,7 +343,10 @@ router.get('/:orderCode', async (req, res) => {
 		});
 
 	} catch (error) {
-		console.error('Error fetching order:', error);
+		logger.error('Error fetching order', error, {
+			orderCode: req.params.orderCode,
+			...logger.getRequestContext(req)
+		});
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy thông tin đơn hàng'

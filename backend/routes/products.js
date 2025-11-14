@@ -1,5 +1,6 @@
 const express = require('express');
 const Product = require('../models/Product');
+const logger = require('../utils/logger');
 const router = express.Router();
 
 /**
@@ -55,7 +56,7 @@ router.get('/', async (req, res) => {
 		});
 
 	} catch (error) {
-		console.error('Error fetching products:', error);
+		logger.error('Error fetching products', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy danh sách sản phẩm'
@@ -113,7 +114,7 @@ router.get('/direct-sales', async (req, res) => {
 		});
 
 	} catch (error) {
-		console.error('Error fetching direct-sales products:', error);
+		logger.error('Error fetching direct-sales products', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy danh sách sản phẩm bán trực tiếp'
@@ -143,15 +144,18 @@ router.get('/:id', async (req, res) => {
 		});
 
 	} catch (error) {
-		console.error('Error fetching product:', error);
-
 		if (error.name === 'CastError') {
+			logger.warn('Invalid product ID', { productId: req.params.id });
 			return res.status(400).json({
 				success: false,
 				message: 'ID sản phẩm không hợp lệ'
 			});
 		}
 
+		logger.error('Error fetching product', error, {
+			productId: req.params.id,
+			...logger.getRequestContext(req)
+		});
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy thông tin sản phẩm'
@@ -174,7 +178,7 @@ router.get('/categories/list', async (req, res) => {
 		});
 
 	} catch (error) {
-		console.error('Error fetching categories:', error);
+		logger.error('Error fetching categories', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy danh sách danh mục'

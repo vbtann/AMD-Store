@@ -3,6 +3,7 @@ const Combo = require('../models/Combo');
 const Product = require('../models/Product');
 const ComboService = require('../services/ComboService');
 const { authenticateAdmin, authenticateSeller, authenticateUser } = require('../middleware/better-auth');
+const logger = require('../utils/logger');
 const router = express.Router();
 
 /**
@@ -30,7 +31,7 @@ router.get('/', authenticateAdmin, async (req, res) => {
 			data: { combos }
 		});
 	} catch (error) {
-		console.error('Get combos error:', error);
+		logger.error('Error fetching combos', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy danh sách combo'
@@ -52,7 +53,7 @@ router.get('/active', async (req, res) => {
 			data: { combos }
 		});
 	} catch (error) {
-		console.error('Get active combos error:', error);
+		logger.error('Error fetching active combos', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy danh sách combo'
@@ -204,7 +205,7 @@ router.post('/detect', async (req, res) => {
 			}
 		});
 	} catch (error) {
-		console.error('Detect combos error:', error);
+		logger.error('Error detecting combos', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi phát hiện combo'
@@ -265,9 +266,8 @@ router.post('/', authenticateAdmin, async (req, res) => {
 			message: 'Tạo combo thành công'
 		});
 	} catch (error) {
-		console.error('Create combo error:', error);
-
 		if (error.name === 'ValidationError') {
+			logger.warn('Combo validation error', { errors: error.errors });
 			const errors = Object.values(error.errors).map(err => err.message);
 			return res.status(400).json({
 				success: false,
@@ -275,6 +275,7 @@ router.post('/', authenticateAdmin, async (req, res) => {
 			});
 		}
 
+		logger.error('Error creating combo', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi tạo combo'
@@ -305,7 +306,7 @@ router.post('/pricing', async (req, res) => {
 			data: pricingBreakdown
 		});
 	} catch (error) {
-		console.error('Calculate pricing error:', error);
+		logger.error('Error calculating pricing', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi tính toán giá'
@@ -389,9 +390,8 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 			message: 'Cập nhật combo thành công'
 		});
 	} catch (error) {
-		console.error('Update combo error:', error);
-
 		if (error.name === 'ValidationError') {
+			logger.warn('Combo update validation error', { errors: error.errors, comboId: req.params.id });
 			const errors = Object.values(error.errors).map(err => err.message);
 			return res.status(400).json({
 				success: false,
@@ -399,6 +399,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
 			});
 		}
 
+		logger.error('Error updating combo', error, {
+			comboId: req.params.id,
+			...logger.getRequestContext(req)
+		});
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi cập nhật combo'
@@ -438,7 +442,10 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
 			message: 'Xóa combo thành công'
 		});
 	} catch (error) {
-		console.error('Delete combo error:', error);
+		logger.error('Error deleting combo', error, {
+			comboId: req.params.id,
+			...logger.getRequestContext(req)
+		});
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi xóa combo'
@@ -476,7 +483,10 @@ router.get('/:id', authenticateAdmin, async (req, res) => {
 			data: { combo }
 		});
 	} catch (error) {
-		console.error('Get combo error:', error);
+		logger.error('Error fetching combo', error, {
+			comboId: req.params.id,
+			...logger.getRequestContext(req)
+		});
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy thông tin combo'

@@ -1,4 +1,5 @@
 const { auth } = require('../lib/auth');
+const logger = require('../utils/logger');
 
 /**
  * Authentication middleware using better-auth
@@ -21,7 +22,7 @@ const authenticateUser = async (req, res, next) => {
 		req.session = session;
 		next();
 	} catch (error) {
-		console.error('Auth middleware error:', error);
+		logger.error('Authentication failed', error, logger.getRequestContext(req));
 		return res.status(401).json({
 			success: false,
 			message: 'Xác thực thất bại'
@@ -58,7 +59,7 @@ const authenticateAdmin = async (req, res, next) => {
 		req.session = session;
 		next();
 	} catch (error) {
-		console.error('Admin auth middleware error:', error);
+		logger.error('Admin authentication failed', error, logger.getRequestContext(req));
 		return res.status(401).json({
 			success: false,
 			message: 'Xác thực admin thất bại'
@@ -95,7 +96,7 @@ const authenticateSeller = async (req, res, next) => {
 		req.session = session;
 		next();
 	} catch (error) {
-		console.error('Seller auth middleware error:', error);
+		logger.error('Seller authentication failed', error, logger.getRequestContext(req));
 		return res.status(401).json({
 			success: false,
 			message: 'Xác thực seller thất bại'

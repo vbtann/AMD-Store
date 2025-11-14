@@ -1,6 +1,7 @@
 const express = require('express');
 const Order = require('../../models/Order');
 const Product = require('../../models/Product');
+const logger = require('../../utils/logger');
 const router = express.Router();
 
 /**
@@ -90,7 +91,7 @@ router.get('/stats', async (req, res) => {
 		});
 
 	} catch (error) {
-		console.error('Error fetching dashboard stats:', error);
+		logger.error('Error fetching dashboard stats', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi lấy thống kê dashboard'

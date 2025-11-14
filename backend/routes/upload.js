@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const { uploadFile, deleteFile } = require('../lib/minio');
 const { validateImageFile, generateSecureFilename, sanitizeFilename, MAX_FILE_SIZE } = require('../utils/fileValidator');
+const logger = require('../utils/logger');
 const router = express.Router();
 
 const storage = multer.memoryStorage();
@@ -50,18 +51,18 @@ router.post('/product-image', upload.single('image'), async (req, res) => {
 			filename: filename
 		});
 	} catch (error) {
-		console.error('Upload error:', error);
-
 		if (error.message.includes('File signature') ||
 			error.message.includes('Invalid') ||
 			error.message.includes('exceeds') ||
 			error.message.includes('Filename validation')) {
+			logger.warn('Invalid file upload attempt', { error: error.message });
 			return res.status(400).json({
 				success: false,
 				message: error.message
 			});
 		}
 
+		logger.error('Error uploading product image', error, logger.getRequestContext(req));
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi tải ảnh',
@@ -103,18 +104,24 @@ router.post('/product-images', upload.array('images', 5), async (req, res) => {
 			images: imageUrls
 		});
 	} catch (error) {
-		console.error('Upload error:', error);
-
 		if (error.message.includes('File signature') ||
 			error.message.includes('Invalid') ||
 			error.message.includes('exceeds') ||
 			error.message.includes('Filename validation')) {
+			logger.warn('Invalid multiple files upload attempt', {
+				error: error.message,
+				fileCount: req.files?.length
+			});
 			return res.status(400).json({
 				success: false,
 				message: error.message
 			});
 		}
 
+		logger.error('Error uploading multiple product images', error, {
+			fileCount: req.files?.length,
+			...logger.getRequestContext(req)
+		});
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi tải ảnh',
@@ -135,9 +142,8 @@ router.delete('/product-image/:filename', async (req, res) => {
 			message: 'Xóa ảnh thành công'
 		});
 	} catch (error) {
-		console.error('Delete error:', error);
-
 		if (error.message.includes('Invalid filename')) {
+			logger.warn('Invalid filename for deletion', { filename: req.params.filename });
 			return res.status(400).json({
 				success: false,
 				message: 'Tên file không hợp lệ'
@@ -145,12 +151,17 @@ router.delete('/product-image/:filename', async (req, res) => {
 		}
 
 		if (error.code === 'NotFound') {
+			logger.warn('File not found for deletion', { filename: req.params.filename });
 			return res.status(404).json({
 				success: false,
 				message: 'Không tìm thấy file'
 			});
 		}
 
+		logger.error('Error deleting product image', error, {
+			filename: req.params.filename,
+			...logger.getRequestContext(req)
+		});
 		res.status(500).json({
 			success: false,
 			message: 'Lỗi server khi xóa ảnh',

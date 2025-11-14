@@ -7,6 +7,7 @@ const path = require('path');
 const { auth } = require('./lib/auth');
 const { connectDB } = require('./lib/database');
 const { toNodeHandler } = require('better-auth/node');
+const logger = require('./utils/logger');
 
 
 const app = express();
@@ -139,11 +140,8 @@ app.get('/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-	console.error('[ERROR] Unhandled error:', err);
-	console.error('[ERROR] Stack trace:', err.stack);
-	console.error('[ERROR] Request URL:', req.url);
-	console.error('[ERROR] Request method:', req.method);
-	console.error('[ERROR] Request origin:', req.headers.origin);
+	// Log error with full context
+	logger.error('Unhandled error in request', err, logger.getRequestContext(req));
 
 	// Ensure CORS headers are present in error responses
 	const allowedOrigins = [
@@ -162,20 +160,27 @@ app.use((err, req, res, next) => {
 		res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Requested-With');
 	}
 
+	// Determine error status code
+	const statusCode = err.statusCode || err.status || 500;
+
 	// Send appropriate error response
-	res.status(500).json({
+	res.status(statusCode).json({
 		success: false,
 		message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
 		error: process.env.NODE_ENV === 'development' ? {
 			message: err.message,
 			stack: err.stack,
-			name: err.name
+			name: err.name,
+			code: err.code
 		} : {}
 	});
 });
 
 // 404 handler
 app.use('*', (req, res) => {
+	// Log 404 requests for monitoring
+	logger.warn('Route not found', logger.getRequestContext(req));
+
 	// Ensure CORS headers are present in 404 responses
 	const allowedOrigins = [
 		...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()) : []),
@@ -193,24 +198,62 @@ app.use('*', (req, res) => {
 		res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, X-Requested-With');
 	}
 
-	res.status(404).json({ message: 'Route not found' });
+	res.status(404).json({ success: false, message: 'Route not found' });
 });
 
 const PORT = process.env.PORT || 5000;
 
+// Global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+	logger.unhandledRejection(reason, promise);
+	// Don't exit the process in production, just log
+	if (process.env.NODE_ENV === 'development') {
+		process.exit(1);
+	}
+});
+
+process.on('uncaughtException', (err) => {
+	logger.uncaughtException(err);
+	// For uncaught exceptions, we should exit
+	process.exit(1);
+});
+
+process.on('SIGTERM', () => {
+	logger.info('SIGTERM signal received: closing HTTP server');
+	process.exit(0);
+});
+
+process.on('SIGINT', () => {
+	logger.info('SIGINT signal received: closing HTTP server');
+	process.exit(0);
+});
+
 // Start server with database connection
 async function startServer() {
 	try {
+		logger.info('Starting server...', {
+			environment: process.env.NODE_ENV,
+			nodeVersion: process.version
+		});
+
 		// Connect to MongoDB via Mongoose
 		await connectDB();
+		logger.success('Database connected successfully');
 
 		app.listen(PORT, () => {
-			console.log(`[OK] Server running on port ${PORT}`);
-			console.log(`[ENV] Environment: ${process.env.NODE_ENV}`);
-			console.log(`[API] API URL: http://localhost:${PORT}/api`);
+			logger.success('Server started successfully', {
+				port: PORT,
+				environment: process.env.NODE_ENV,
+				apiUrl: `http://localhost:${PORT}/api`
+			});
 		});
 	} catch (error) {
-		console.error('[ERROR] Failed to start server:', error);
+		logger.critical('Failed to start server', error, {
+			processInfo: {
+				pid: process.pid,
+				uptime: process.uptime()
+			}
+		});
 		process.exit(1);
 	}
 }

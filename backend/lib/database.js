@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 require('dotenv').config();
 
 let isConnected = false;
 
 async function connectDB() {
 	if (isConnected) {
-		console.log('MongoDB already connected via Mongoose');
+		logger.info('MongoDB already connected via Mongoose');
 		return mongoose.connection;
 	}
 
@@ -18,22 +19,30 @@ async function connectDB() {
 		await mongoose.connect(mongoUri);
 
 		isConnected = true;
-		console.log('✅ MongoDB connected successfully via Mongoose');
+		logger.database('MongoDB connected successfully via Mongoose', {
+			host: mongoose.connection.host,
+			name: mongoose.connection.name
+		});
 
 		// Handle connection events
 		mongoose.connection.on('error', (err) => {
-			console.error('MongoDB connection error:', err);
+			logger.error('MongoDB connection error', err);
 			isConnected = false;
 		});
 
 		mongoose.connection.on('disconnected', () => {
-			console.log('MongoDB disconnected');
+			logger.warn('MongoDB disconnected');
 			isConnected = false;
+		});
+
+		mongoose.connection.on('reconnected', () => {
+			logger.success('MongoDB reconnected');
+			isConnected = true;
 		});
 
 		return mongoose.connection;
 	} catch (error) {
-		console.error('MongoDB connection failed:', error);
+		logger.critical('MongoDB connection failed', error);
 		isConnected = false;
 		throw error;
 	}

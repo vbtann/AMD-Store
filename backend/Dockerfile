@@ -1,8 +1,5 @@
 FROM node:22-alpine
 
-ARG MONGODB_URI
-ENV MONGODB_URI=${MONGODB_URI}
-
 # SAB Lanyard Backend
 WORKDIR /app
 

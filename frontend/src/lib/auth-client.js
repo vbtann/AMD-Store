@@ -11,6 +11,7 @@ export const authClient = createAuthClient({
 	plugins: [
 		usernameClient(),
 		adminClient(),
+		// Import the auth type for proper inference
 		customSessionClient(),
 	],
 });

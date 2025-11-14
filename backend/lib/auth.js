@@ -46,11 +46,10 @@ const auth = betterAuth({
 			adminUserIds: [],
 		}),
 		customSession(async ({ user, session }) => {
-			// Ensure user object includes role field
 			return {
 				user: {
 					...user,
-					role: user.role || 'user', // Include role in user object with fallback
+					role: user.role, // Ensure role is included in session
 				},
 				session
 			};
@@ -90,7 +89,6 @@ const auth = betterAuth({
 				type: "string",
 				defaultValue: "user",
 				required: false,
-				input: true, // Allow role to be set during user creation
 			},
 		},
 		modelName: "user",

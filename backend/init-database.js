@@ -35,12 +35,16 @@ async function initDatabase() {
 					email: adminEmail,
 					name: 'System Administrator',
 					password: adminPassword,
-					username: adminUsername,
-					displayUsername: 'Admin',
-					role: 'admin', // Role should be at root level with additionalFields
+					role: 'admin',
+					data: {
+						username: adminUsername,
+						displayUsername: 'Admin',
+					}
 				},
 			});
-		}		// log all accounts and users in the database
+		}
+
+		// log all accounts and users in the database
 		const allUsers = await User.find();
 		const allAccounts = await Account.find();
 

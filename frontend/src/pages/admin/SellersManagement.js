@@ -176,9 +176,13 @@ const SellersManagement = () => {
 					email: formData.email,
 					password: formData.password,
 					name: formData.name,
-					username: formData.username,
 					role: 'seller',
-				}); if (error) {
+					data: {
+						username: formData.username
+					}
+				});
+
+				if (error) {
 					throw new Error(error.message);
 				}
 

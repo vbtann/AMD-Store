@@ -53,31 +53,30 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      args:
-        MONGODB_URI: ${MONGODB_URI:-mongodb://amdadmin:amdpassword123@mongodb:27017/amdstore?authSource=admin}
     pull_policy: always
     container_name: amdstore_backend
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${BACKEND_PORT:-5000}
-      BASE_URL: ${BACKEND_URL:-http://localhost}
-      MONGODB_URI: ${MONGODB_URI:-mongodb://amdadmin:amdpassword123@mongodb:27017/amdstore?authSource=admin}
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-here}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-sab@fit.hcmus.edu.vn}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
-      APPSCRIPT_URL: ${APPSCRIPT_URL:-your-appscript-url-here}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
-      MINIO_PORT: ${MINIO_PORT:-9000}
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-amdstore}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
-      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+      # Override specific env vars if needed, otherwise use from .env file
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${BACKEND_PORT}
+      BASE_URL: ${BACKEND_URL}
+      MONGODB_URI: ${MONGODB_URI}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      APPSCRIPT_URL: ${APPSCRIPT_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_PORT: ${MINIO_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      MINIO_USE_SSL: ${MINIO_USE_SSL}
+      TZ: ${TZ}
     expose:
       - "5000"
     depends_on:

@@ -48,6 +48,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        MONGODB_URI: ${MONGODB_URI:-mongodb://amdadmin:amdpassword123@mongodb:27017/amdstore?authSource=admin}
     pull_policy: always
     container_name: amdstore_backend
     restart: unless-stopped

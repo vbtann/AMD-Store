@@ -5,7 +5,6 @@ const { admin, openAPI } = require("better-auth/plugins");
 const { username } = require("better-auth/plugins");
 const { jwt } = require("better-auth/plugins");
 const { customSession } = require("better-auth/plugins");
-const logger = require('../utils/logger');
 
 // Get MongoDB URI from environment variables
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -13,37 +12,8 @@ if (!MONGODB_URI) {
 	throw new Error('MONGODB_URI environment variable is required');
 }
 
-// Create MongoDB connection for better-auth with proper connection pooling
-const client = new MongoClient(MONGODB_URI, {
-	maxPoolSize: 10,
-	minPoolSize: 2,
-	maxIdleTimeMS: 10000,
-	serverSelectionTimeoutMS: 5000,
-	socketTimeoutMS: 45000,
-	retryWrites: true,
-	retryReads: true
-});
-
-// Connect the client
-let isClientConnected = false;
-const connectClient = async () => {
-	if (!isClientConnected) {
-		try {
-			await client.connect();
-			isClientConnected = true;
-			logger.info('Better-auth MongoDB client connected');
-		} catch (error) {
-			logger.error('Better-auth MongoDB client connection failed', error);
-			throw error;
-		}
-	}
-};
-
-// Initialize connection when module is loaded
-connectClient().catch(err => {
-	logger.critical('Failed to initialize better-auth MongoDB client', err);
-});
-
+// Create MongoDB connection
+const client = new MongoClient(MONGODB_URI);
 const db = client.db();
 
 const auth = betterAuth({
@@ -125,21 +95,4 @@ const auth = betterAuth({
 	},
 });
 
-// Graceful shutdown handler for MongoDB client
-const closeAuthClient = async () => {
-	if (isClientConnected) {
-		try {
-			await client.close();
-			isClientConnected = false;
-			logger.info('Better-auth MongoDB client closed');
-		} catch (error) {
-			logger.error('Error closing better-auth MongoDB client', error);
-		}
-	}
-};
-
-// Handle process termination
-process.on('SIGTERM', closeAuthClient);
-process.on('SIGINT', closeAuthClient);
-
-module.exports = { auth, closeAuthClient };
+module.exports = { auth };

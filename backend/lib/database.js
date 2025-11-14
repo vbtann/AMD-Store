@@ -5,7 +5,7 @@ require('dotenv').config();
 let isConnected = false;
 
 async function connectDB() {
-	if (isConnected && mongoose.connection.readyState === 1) {
+	if (isConnected) {
 		logger.info('MongoDB already connected via Mongoose');
 		return mongoose.connection;
 	}
@@ -16,52 +16,29 @@ async function connectDB() {
 			throw new Error('MONGODB_URI environment variable is required');
 		}
 
-		// Configure mongoose to prevent multiple connection attempts
-		mongoose.set('strictQuery', false);
-
-		// Connect with proper options to prevent connection issues
-		await mongoose.connect(mongoUri, {
-			serverSelectionTimeoutMS: 5000,
-			socketTimeoutMS: 45000,
-			maxPoolSize: 10,
-			minPoolSize: 2,
-			maxIdleTimeMS: 10000,
-			retryWrites: true,
-			retryReads: true,
-			autoIndex: process.env.NODE_ENV !== 'production'
-		});
+		await mongoose.connect(mongoUri);
 
 		isConnected = true;
 		logger.database('MongoDB connected successfully via Mongoose', {
 			host: mongoose.connection.host,
-			name: mongoose.connection.name,
-			readyState: mongoose.connection.readyState
+			name: mongoose.connection.name
 		});
 
-		// Set up connection event handlers only once
-		if (!mongoose.connection._setupEventHandlers) {
-			mongoose.connection._setupEventHandlers = true;
+		// Handle connection events
+		mongoose.connection.on('error', (err) => {
+			logger.error('MongoDB connection error', err);
+			isConnected = false;
+		});
 
-			mongoose.connection.on('error', (err) => {
-				logger.error('MongoDB connection error', err);
-				isConnected = false;
-			});
+		mongoose.connection.on('disconnected', () => {
+			logger.warn('MongoDB disconnected');
+			isConnected = false;
+		});
 
-			mongoose.connection.on('disconnected', () => {
-				logger.warn('MongoDB disconnected');
-				isConnected = false;
-			});
-
-			mongoose.connection.on('reconnected', () => {
-				logger.success('MongoDB reconnected');
-				isConnected = true;
-			});
-
-			mongoose.connection.on('close', () => {
-				logger.info('MongoDB connection closed');
-				isConnected = false;
-			});
-		}
+		mongoose.connection.on('reconnected', () => {
+			logger.success('MongoDB reconnected');
+			isConnected = true;
+		});
 
 		return mongoose.connection;
 	} catch (error) {

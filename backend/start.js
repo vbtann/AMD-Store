@@ -11,20 +11,7 @@ async function waitForMongoDB() {
 
 	while (retries < maxRetries) {
 		try {
-			const mongoose = require('mongoose');
-			const mongoUri = process.env.MONGODB_URI;
-
-			if (!mongoUri) {
-				throw new Error('MONGODB_URI environment variable is required');
-			}
-
-			// Simple connection test without using the full connectDB function
-			const conn = await mongoose.createConnection(mongoUri, {
-				serverSelectionTimeoutMS: 5000,
-				connectTimeoutMS: 5000
-			}).asPromise();
-
-			await conn.close();
+			await connectDB();
 			console.log('[OK] MongoDB is ready');
 			return true;
 		} catch (error) {

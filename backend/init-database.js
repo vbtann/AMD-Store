@@ -11,9 +11,14 @@ const SETTINGS_KEY = 'payment_config';
 
 async function initDatabase() {
 	try {
-		// Connect to MongoDB using Mongoose
-		await connectDB();
-		console.log('✅ Connected to MongoDB via Mongoose');
+		// Check if already connected, if not connect
+		const mongoose = require('mongoose');
+		if (mongoose.connection.readyState !== 1) {
+			await connectDB();
+			console.log('✅ Connected to MongoDB via Mongoose');
+		} else {
+			console.log('✅ Using existing MongoDB connection');
+		}
 
 		// Admin credentials from environment
 		const adminEmail = process.env.ADMIN_EMAIL || 'sab@fit.hcmus.edu.vn';

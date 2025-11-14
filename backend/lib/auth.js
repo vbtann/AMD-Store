@@ -1,5 +1,5 @@
 const { betterAuth } = require("better-auth");
-const { MongoClient } = require("mongodb");
+const mongoose = require("mongoose");
 const { mongodbAdapter } = require("better-auth/adapters/mongodb");
 const { admin, openAPI } = require("better-auth/plugins");
 const { username } = require("better-auth/plugins");
@@ -12,12 +12,17 @@ if (!MONGODB_URI) {
 	throw new Error('MONGODB_URI environment variable is required');
 }
 
-// Create MongoDB connection
-const client = new MongoClient(MONGODB_URI);
-const db = client.db();
+// Reuse Mongoose connection to avoid multiple connection pools
+// This prevents "Authentication failed" errors and connection pool conflicts
+const getDb = () => {
+	if (mongoose.connection.readyState !== 1) {
+		console.warn('[better-auth] Mongoose not connected, waiting for connection...');
+	}
+	return mongoose.connection.db;
+};
 
 const auth = betterAuth({
-	database: mongodbAdapter(db),
+	database: mongodbAdapter(getDb),
 	baseURL: process.env.BASE_URL || "http://localhost:5000",
 	secret: process.env.JWT_SECRET,
 	trustedOrigins: [

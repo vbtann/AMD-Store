@@ -2,13 +2,9 @@ services:
   # SAB Lanyard MongoDB Database
   mongodb:
     image: mongo:6.0
-    container_name: amdstore_mongodb
     restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-amdadmin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-amdpassword123}
-      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-amdstore}
-      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+    env_file:
+      - .env
     expose:
       - "27017"
     volumes:
@@ -30,7 +26,6 @@ services:
   # SAB Lanyard MinIO Object Storage
   minio:
     image: minio/minio:latest
-    container_name: amdstore_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     env_file:
@@ -52,36 +47,36 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     pull_policy: always
-    container_name: amdstore_backend
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      # Override specific env vars if needed, otherwise use from .env file
-      NODE_ENV: ${NODE_ENV}
-      PORT: ${BACKEND_PORT}
-      BASE_URL: ${BACKEND_URL}
-      MONGODB_URI: ${MONGODB_URI}
-      JWT_SECRET: ${JWT_SECRET}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_USERNAME: ${ADMIN_USERNAME}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      APPSCRIPT_URL: ${APPSCRIPT_URL}
-      CORS_ORIGIN: ${CORS_ORIGIN}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
-      MINIO_PORT: ${MINIO_PORT}
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
-      MINIO_USE_SSL: ${MINIO_USE_SSL}
-      TZ: ${TZ}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${BACKEND_PORT:-5000}
+      BASE_URL: ${BACKEND_URL:-http://localhost}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://amdadmin:password123@mongodb:27017/minipreorder?authSource=admin}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-here}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-sab@fit.hcmus.edu.vn}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-amdadmin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-amdadmin123}
+      APPSCRIPT_URL: ${APPSCRIPT_URL:-your-appscript-url-here}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
+      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-amdstore}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
     expose:
       - "5000"
     depends_on:
       mongodb:
         condition: service_healthy
+        restart: true
       minio:
         condition: service_healthy
+        restart: true
     healthcheck:
       test: [ "CMD", "node", "-e", "require('http').get('http://localhost:5000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))" ]
       interval: 10s
@@ -103,7 +98,6 @@ services:
     pull_policy: always
     environment:
       VITE_API_URL: ${REACT_APP_API_URL:-http://localhost}
-    container_name: amdstore_frontend
     restart: unless-stopped
     expose:
       - 80
@@ -112,6 +106,7 @@ services:
         condition: service_started
     networks:
       - amdstore_network
+      - domain_network
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/health" ]
       interval: 30s
@@ -127,5 +122,8 @@ volumes:
 
 networks:
   amdstore_network:
+    name: amdstore_network
+    driver: bridge
+  domain_network:
     external: true
     name: multi-domain

@@ -2,7 +2,6 @@ services:
   # SAB Lanyard MongoDB Database
   mongodb:
     image: mongo:6.0
-    container_name: amdstore_mongodb
     restart: unless-stopped
     env_file:
       - .env
@@ -27,7 +26,6 @@ services:
   # SAB Lanyard MinIO Object Storage
   minio:
     image: minio/minio:latest
-    container_name: amdstore_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -51,13 +49,12 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     pull_policy: always
-    container_name: amdstore_backend
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${BACKEND_PORT:-5000}
       BASE_URL: ${BACKEND_URL:-http://localhost}
-      MONGODB_URI: ${MONGODB_URI:-mongodb://admin:password123@mongodb:27017/minipreorder?authSource=admin}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://amdadmin:password123@mongodb:27017/minipreorder?authSource=admin}
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-here}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-sab@fit.hcmus.edu.vn}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
@@ -103,7 +100,6 @@ services:
     environment:
       VITE_API_URL: ${REACT_APP_API_URL:-http://localhost}
     pull_policy: always
-    container_name: amdstore_frontend
     restart: unless-stopped
     ports:
       - "${NGINX_PORT:-80}:80"

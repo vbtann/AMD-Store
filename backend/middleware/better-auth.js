@@ -10,6 +10,7 @@ const authenticateUser = async (req, res, next) => {
 		});
 
 		if (!session) {
+			console.log('[AUTH] No session found in authenticateUser');
 			return res.status(401).json({
 				success: false,
 				message: 'Không có session xác thực, truy cập bị từ chối'
@@ -19,17 +20,21 @@ const authenticateUser = async (req, res, next) => {
 		// Add user and session to request
 		req.user = session.user;
 		req.session = session;
+		console.log('[AUTH] User authenticated:', { userId: session.user.id, role: session.user.role });
 		next();
 	} catch (error) {
-		console.error('Auth middleware error:', error);
+		console.error('[AUTH] Auth middleware error:', error);
+		console.error('[AUTH] Error details:', {
+			message: error.message,
+			stack: error.stack,
+			headers: req.headers
+		});
 		return res.status(401).json({
 			success: false,
 			message: 'Xác thực thất bại'
 		});
 	}
-};
-
-/**
+};/**
  * Authentication middleware for admin routes
  */
 const authenticateAdmin = async (req, res, next) => {
@@ -39,6 +44,7 @@ const authenticateAdmin = async (req, res, next) => {
 		});
 
 		if (!session) {
+			console.log('[AUTH] No session found in authenticateAdmin');
 			return res.status(401).json({
 				success: false,
 				message: 'Không có session xác thực, truy cập bị từ chối'
@@ -46,6 +52,7 @@ const authenticateAdmin = async (req, res, next) => {
 		}
 
 		if (!session.user || session.user.role !== 'admin') {
+			console.log('[AUTH] User is not admin:', { userId: session.user?.id, role: session.user?.role });
 			return res.status(403).json({
 				success: false,
 				message: 'Truy cập bị từ chối. Chỉ admin mới có thể thực hiện hành động này.'
@@ -56,17 +63,21 @@ const authenticateAdmin = async (req, res, next) => {
 		req.admin = session.user;
 		req.user = session.user;
 		req.session = session;
+		console.log('[AUTH] Admin authenticated:', { userId: session.user.id, role: session.user.role });
 		next();
 	} catch (error) {
-		console.error('Admin auth middleware error:', error);
+		console.error('[AUTH] Admin auth middleware error:', error);
+		console.error('[AUTH] Error details:', {
+			message: error.message,
+			stack: error.stack,
+			headers: req.headers
+		});
 		return res.status(401).json({
 			success: false,
 			message: 'Xác thực admin thất bại'
 		});
 	}
-};
-
-/**
+};/**
  * Authentication middleware for seller routes
  */
 const authenticateSeller = async (req, res, next) => {
@@ -76,6 +87,7 @@ const authenticateSeller = async (req, res, next) => {
 		});
 
 		if (!session) {
+			console.log('[AUTH] No session found in authenticateSeller');
 			return res.status(401).json({
 				success: false,
 				message: 'Không có session xác thực, truy cập bị từ chối'
@@ -83,6 +95,7 @@ const authenticateSeller = async (req, res, next) => {
 		}
 
 		if (!session.user || (session.user.role !== 'seller' && session.user.role !== 'admin')) {
+			console.log('[AUTH] User is not seller or admin:', { userId: session.user?.id, role: session.user?.role });
 			return res.status(403).json({
 				success: false,
 				message: 'Truy cập bị từ chối. Chỉ seller hoặc admin mới có thể thực hiện hành động này.'
@@ -93,17 +106,21 @@ const authenticateSeller = async (req, res, next) => {
 		req.seller = session.user;
 		req.user = session.user;
 		req.session = session;
+		console.log('[AUTH] Seller authenticated:', { userId: session.user.id, role: session.user.role });
 		next();
 	} catch (error) {
-		console.error('Seller auth middleware error:', error);
+		console.error('[AUTH] Seller auth middleware error:', error);
+		console.error('[AUTH] Error details:', {
+			message: error.message,
+			stack: error.stack,
+			headers: req.headers
+		});
 		return res.status(401).json({
 			success: false,
 			message: 'Xác thực seller thất bại'
 		});
 	}
-};
-
-module.exports = {
+}; module.exports = {
 	authenticateUser,
 	authenticateAdmin,
 	authenticateSeller

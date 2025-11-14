@@ -1,8 +1,6 @@
 const { connectDB } = require('./lib/database');
 const { auth } = require('./lib/auth');
 const Product = require('./models/Product');
-const User = require('./models/User');
-const Account = require('./models/Account');
 const Settings = require('./models/Settings');
 const crypto = require('crypto');
 require('dotenv').config();
@@ -20,33 +18,70 @@ async function initDatabase() {
 		const adminUsername = process.env.ADMIN_USERNAME || 'admin';
 		const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
-		// Check if admin user already exists in database
-		const existingUser = await User.findOne({
+		// Check if admin user already exists using better-auth's native MongoDB connection
+		// Note: better-auth uses native MongoDB driver, not Mongoose
+		const { MongoClient } = require('mongodb');
+		const mongoClient = new MongoClient(process.env.MONGODB_URI);
+		await mongoClient.connect();
+		const betterAuthDb = mongoClient.db();
+
+		const existingUser = await betterAuthDb.collection('user').findOne({
 			$or: [{ email: adminEmail }, { username: adminUsername }]
 		});
 
 		if (existingUser) {
-			console.log('⚠️ Existing admin user found');
-		}
-		else {
+			console.log('⚠️  Existing admin user found:', {
+				id: existingUser.id,
+				email: existingUser.email,
+				username: existingUser.username,
+				role: existingUser.role
+			});
 
-			await auth.api.createUser({
-				body: {
-					email: adminEmail,
-					name: 'System Administrator',
-					password: adminPassword,
-					role: 'admin',
-					data: {
+			// Update role if not admin
+			if (existingUser.role !== 'admin') {
+				console.log('⚠️  User exists but is not admin. Updating role...');
+				await betterAuthDb.collection('user').updateOne(
+					{ email: adminEmail },
+					{ $set: { role: 'admin', updatedAt: new Date() } }
+				);
+				console.log('✅ Updated user role to admin');
+			}
+		} else {
+			console.log('📝 Creating new admin user...');
+			try {
+				const result = await auth.api.createUser({
+					body: {
+						email: adminEmail,
+						name: 'System Administrator',
+						password: adminPassword,
 						username: adminUsername,
 						displayUsername: 'Admin',
-					}
-				},
-			});
+						role: 'admin'
+					},
+				});
+
+				if (result && result.user) {
+					console.log('✅ Admin user created successfully:', {
+						id: result.user.id,
+						email: result.user.email,
+						username: result.user.username,
+						role: result.user.role
+					});
+				} else {
+					console.error('⚠️  createUser returned unexpected result:', result);
+				}
+			} catch (createError) {
+				console.error('❌ Error creating admin user:', createError);
+				console.error('[INIT-DB] Error details:', {
+					message: createError.message,
+					stack: createError.stack,
+					name: createError.name
+				});
+				throw createError;
+			}
 		}
 
-		// log all accounts and users in the database
-		const allUsers = await User.find();
-		const allAccounts = await Account.find();
+		await mongoClient.close();
 
 		// Initialize payment settings
 		const existingSettings = await Settings.findOne({ key: SETTINGS_KEY });
